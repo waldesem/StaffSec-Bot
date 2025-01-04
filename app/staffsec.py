@@ -5,8 +5,14 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 load_dotenv()
 
@@ -25,53 +31,44 @@ tasks = {}
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
-    keyboard = [
-        [
-            InlineKeyboardButton("Помощь", callback_data="help"),
-        ],
-    ]
-    await update.message.reply_text(
-        "Привет! Это Telegram бот кадровой безопасности банка. \n"
-        "Чтобы узнать доступные команды, нажмите на кнопку Помощь.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
-
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
+    await update.message.reply_text("Привет! Я Telegram Bot кадровой безопасности.")
     if update.effective_user.username not in executors:
-        keyboard = [
-            [
-                InlineKeyboardButton("Новая задача", callback_data="new_task"),
-            ],
-        ]
         await update.message.reply_text(
-            "Выберите действие:", reply_markup=InlineKeyboardMarkup(keyboard)
+            "Представьтесь и укажите данные интересующего лица.\n"
+            "Пример: /task Ваше имя и организация. ФИО, ДД.ММ.ГГГГ.",
         )
     else:
-        keyboard = [
-            [
-                InlineKeyboardButton("Принять задачу", callback_data="accept_task"),
-                InlineKeyboardButton(
-                    "Отправить результат", callback_data="send_result"
-                ),
-            ],
-        ]
         await update.message.reply_text(
-            "Выберите действие:", reply_markup=InlineKeyboardMarkup(keyboard)
+            "Отправьте одну из следующих команд:\n"
+            "/accept номер задачи - принять задачу в работу\n"
+            "Пример: /accept 1\n\n"
+            "/result номер задачи - отправить результат выполнения задачи\n"
+            "Пример: /result 1 Результат выполнения задачи",
         )
+
+
+async def msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Echo the user message."""
+    message = update.message.text.split(maxsplit=1)
+    if len(message) < 2:
+        await update.message.reply_text(
+            "Недостаточно данных для выполнения команды.",
+        )
+        return
+    if message[0] == "/task":
+        await new_task(update, context)
+    elif message[0] == "/accept":
+        await accept_task(update, context)
+    elif message[0] == "/result":
+        await send_result(update, context)
+    else:
+        await update.message.reply_text("Неизвестная команда.")
 
 
 async def new_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /new_task is issued."""
+    """Send a message when the command /task is issued."""
     user = update.effective_user
     message = update.message.text.split(maxsplit=1)
-
-    if len(message) == 1:
-        await update.message.reply_text(
-            "Пожалуйста, введите текст новой задачи после команды /new_task.",
-        )
-        return
 
     task_description = message[1].strip()
     task_id = len(tasks) + 1
@@ -89,20 +86,14 @@ async def new_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
     await update.message.reply_text(
-        f"Задача #{task_id} создана и отправлена исполнителям.",
+        f"Запрос #{task_id} отправлен исполнителю.",
     )
 
 
 async def accept_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /accept_task is issued."""
+    """Send a message when the command /accept is issued."""
     user = update.effective_user
     message = update.message.text.split(maxsplit=1)
-
-    if len(message) == 1:
-        await update.message.reply_text(
-            "Пожалуйста, укажите номер задачи после команды /accept_task.",
-        )
-        return
 
     try:
         task_id = int(message[1])
@@ -128,14 +119,8 @@ async def accept_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /send_result is issued."""
+    """Send a message when the command /result is issued."""
     message = update.message.text.split(maxsplit=1)
-
-    if len(message) == 1:
-        await update.message.reply_text(
-            "Пожалуйста, укажите ID задачи и результат после команды /send_result.",
-        )
-        return
 
     try:
         task_id = int(message[1].split()[0])
@@ -168,10 +153,7 @@ async def main() -> None:
     """Start the bot."""
     app = ApplicationBuilder().token("TOKEN").build()
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("new_task", new_task))
-    app.add_handler(CommandHandler("accept_task", accept_task))
-    app.add_handler(CommandHandler("send_result", send_result))
+    app.add_handler(MessageHandler(filters.COMMAND, msg))
 
     logging.info("Starting bot...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
