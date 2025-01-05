@@ -1,5 +1,5 @@
 # Telegram API token
 TOKEN=TOKEN
 
-# List of contacts
-CONTACTS=contact_1 contact_id_2
+# List of usernames
+EXECUTORS=username1 username2

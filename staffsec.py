@@ -1,4 +1,4 @@
-"""Telegram Bot to manage tasks."""  # noqa: INP001
+"""Telegram Bot to manage tasks."""
 
 import asyncio
 import logging
@@ -24,65 +24,40 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
-executors = [int(contact) for contact in str(os.getenv("CONTACTS")).split()]
+executors = list(str(os.getenv("EXECUTORS")).split())
 
 tasks = {}
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  # noqa: ARG001
     """Send a message when the command /start is issued."""
-    await update.message.reply_text("Привет! Я Telegram Bot кадровой безопасности.")
     if update.effective_user.username not in executors:
         await update.message.reply_text(
             "Представьтесь и укажите данные интересующего лица.\n"
-            "Пример: /task Ваше имя и организация. ФИО, ДД.ММ.ГГГГ.",
+            "Пример: Ваше имя и организация. ФИО, ДД.ММ.ГГГГ. Комментарии.",
         )
     else:
         await update.message.reply_text(
-            "Отправьте одну из следующих команд:\n"
-            "/accept номер задачи - принять задачу в работу\n"
-            "Пример: /accept 1\n\n"
-            "/result номер задачи - отправить результат выполнения задачи\n"
-            "Пример: /result 1 Результат выполнения задачи",
+            "Чтобы принять задачу в работу отправьте команду:\n"
+            "/accept ID задачи. Пример: /accept 1\n\n"
+            "Чтобы отправить ответ на запрос напишите в чат ID запроса и ответ.\n",
         )
-
-
-async def msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    message = update.message.text.split(maxsplit=1)
-    if len(message) < 2:
-        await update.message.reply_text(
-            "Недостаточно данных для выполнения команды.",
-        )
-        return
-    if message[0] == "/task":
-        await new_task(update, context)
-    elif message[0] == "/accept":
-        await accept_task(update, context)
-    elif message[0] == "/result":
-        await send_result(update, context)
-    else:
-        await update.message.reply_text("Неизвестная команда.")
 
 
 async def new_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /task is issued."""
-    user = update.effective_user
-    message = update.message.text.split(maxsplit=1)
-
-    task_description = message[1].strip()
+    """Send a message when the Запрос is issued."""
     task_id = len(tasks) + 1
 
     tasks[task_id] = {
-        "description": task_description,
-        "creator": user.id,
+        "description": update.message.text,
+        "creator": update.effective_user.id,
         "assignee": None,
     }
 
     for executor in executors:
         await context.bot.send_message(
             chat_id=executor,
-            text=f"Новая задача #{task_id}: {task_description}",
+            text=f"Новая задача #{task_id}: {update.message.text}",
         )
 
     await update.message.reply_text(
@@ -93,10 +68,8 @@ async def new_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def accept_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /accept is issued."""
     user = update.effective_user
-    message = update.message.text.split(maxsplit=1)
-
     try:
-        task_id = int(message[1])
+        task_id = int(context.args[0])
     except ValueError:
         await update.message.reply_text("Номер задачи должен быть числом.")
         return
@@ -119,7 +92,7 @@ async def accept_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 
 async def send_result(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /result is issued."""
+    """Send a message when the Ответ is issued."""
     message = update.message.text.split(maxsplit=1)
 
     try:
@@ -153,7 +126,9 @@ async def main() -> None:
     """Start the bot."""
     app = ApplicationBuilder().token("TOKEN").build()
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.COMMAND, msg))
+    app.add_handler(CommandHandler("accept", accept_task))
+    app.add_handler(MessageHandler(filters.User(executors), send_result))
+    app.add_handler(MessageHandler(filters.TEXT, new_task))
 
     logging.info("Starting bot...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
