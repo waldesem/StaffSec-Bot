@@ -28,6 +28,8 @@ executors = list(str(os.getenv("EXECUTORS")).split())
 
 tasks = {}
 
+HELLO = "Привет, я бот для управления запросами. Для начала работы напишите /start"
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
