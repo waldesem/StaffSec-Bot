@@ -29,7 +29,7 @@ executors = list(str(os.getenv("EXECUTORS")).split())
 tasks = {}
 
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:  # noqa: ARG001
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     if update.effective_user.username not in executors:
         await update.message.reply_text(
